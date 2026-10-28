@@ -1,0 +1,856 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Tiny Korea Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;600;800&family=Bagel+Fat+One&display=swap" rel="stylesheet">
+<style>
+/* Layout: one centered column. Heading and a tap-the-map hint on top, a big tappable map below. Tapping the map opens a popup screen for the nearest city with the "With me?" Yes/No. */
+:root {
+  --bg: #FFF6E6;
+  --fg: #1F2A44;
+  --muted: #5F6B85;
+  --accent: #E0483F;
+  --accent-fg: #FFFFFF;
+  --sea: #9AD8F5;
+  --sea2: #3F9BE0;
+  --land: #A8DD8E;
+  --land2: #6FC36F;
+  --landside: #4E9A52;
+  --soil: #A9784F;
+  --cream: #FFF2D6;
+  --halo: #FFF6E6;
+  --line: #1F2A44;
+  --card: #FFFDF8;
+  --soft: #FFE0D6;
+  --north: #E9E2F2;
+  --font-display: "Bagel Fat One", "Arial Rounded MT Bold", "Hiragino Maru Gothic ProN", system-ui, sans-serif;
+  --font-body: "Albert Sans", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1A33; --fg: #F3F0E8; --muted: #A9B5CF; --accent: #FF8A78; --accent-fg: #2A0F0B;
+    --sea: #1C4A86; --sea2: #0F2C5C; --land: #5FA567; --land2: #3E8250; --landside: #2F6140; --soil: #6B4A32; --cream: #E8D9B5; --halo: #0E1A33; --line: #F3F0E8; --card: #18264A; --soft: #4A2A2C; --north: #2A2150;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1A33; --fg: #F3F0E8; --muted: #A9B5CF; --accent: #FF8A78; --accent-fg: #2A0F0B;
+  --sea: #1C4A86; --sea2: #0F2C5C; --land: #5FA567; --land2: #3E8250; --landside: #2F6140; --soil: #6B4A32; --cream: #E8D9B5; --halo: #0E1A33; --line: #F3F0E8; --card: #18264A; --soft: #4A2A2C; --north: #2A2150;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.5;
+  padding-block: 36px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 580px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; align-items: center; text-align: center; }
+h1 { font-family: var(--font-display); font-weight: 400; line-height: 1.08; text-wrap: balance; margin: 0; font-size: clamp(2.2rem, 8vw, 3.4rem); }
+.sub { color: var(--muted); font-size: 1.08rem; margin: 10px auto 0; max-width: 40ch; }
+.hint {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--accent); color: var(--accent-fg);
+  font-weight: 800; font-size: 1rem; letter-spacing: .02em;
+  padding: 10px 20px; border-radius: 999px; border: 2px solid var(--line);
+  box-shadow: 4px 4px 0 var(--line);
+  animation: nudge 1.8s ease-in-out infinite;
+}
+@keyframes nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.map-box { width: 100%; min-width: 0; }
+svg.map { width: 100%; max-width: 540px; height: auto; display: block; margin: 0 auto; touch-action: manipulation; cursor: pointer; border-radius: 28px; border: 2px solid var(--line); }
+.sea { fill: url(#gSea); }
+.sunlight { fill: url(#gSun); pointer-events: none; }
+.ripple { fill: none; stroke: #fff; stroke-linejoin: round; pointer-events: none; }
+.ripple.r1 { stroke-width: 14; opacity: .22; }
+.ripple.r2 { stroke-width: 28; opacity: .12; }
+.wave { fill: none; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; opacity: .5; animation: bobwave 4s ease-in-out infinite; }
+@keyframes bobwave { 0%, 100% { transform: translateX(0); opacity: .25; } 50% { transform: translateX(5px); opacity: .6; } }
+.top { fill: url(#gLand); stroke: var(--cream); stroke-width: 5; stroke-linejoin: round; }
+.cloud { fill: #fff; opacity: .92; pointer-events: none; animation: drift 14s ease-in-out infinite alternate; }
+@keyframes drift { from { transform: translateX(-14px); } to { transform: translateX(16px); } }
+.mini { transform-box: fill-box; transform-origin: 50% 100%; cursor: pointer; }
+.mini:hover { animation: hop .55s ease; }
+@keyframes hop { 0% { transform: none; } 35% { transform: translateY(-4px) scale(1.07, .95); } 65% { transform: translateY(0) scale(.97, 1.04); } 100% { transform: none; } }
+.glow { fill: url(#gGlow); opacity: 0; pointer-events: none; transition: opacity .4s ease; }
+.glow.on { opacity: 1; animation: glowpulse 2.4s ease-in-out infinite; }
+@keyframes glowpulse { 50% { opacity: .55; } }
+.pin { animation: floatpin 3s ease-in-out infinite; }
+@keyframes floatpin { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.pin .dot { fill: var(--accent); stroke: var(--cream); stroke-width: 3; }
+.pin .ring { fill: none; stroke: var(--accent); stroke-width: 2.5; animation: ping 2s ease-out infinite; }
+@keyframes ping { from { r: 9; opacity: .9; } to { r: 22; opacity: 0; } }
+.pin text { font-family: var(--font-body); font-weight: 800; font-size: 13px; fill: var(--fg); paint-order: stroke; stroke: var(--halo); stroke-width: 4.5px; stroke-linejoin: round; pointer-events: none; }
+.pin:focus { outline: none; }
+.pin:focus-visible .dot { stroke: var(--fg); stroke-width: 4; }
+.floaty { font-size: 22px; pointer-events: none; animation: rise .9s ease-out forwards; }
+@keyframes rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-34px); opacity: 0; } }
+
+.overlay {
+  position: fixed; inset: 0; z-index: 30;
+  background: rgba(22, 12, 44, .6);
+  display: flex; align-items: center; justify-content: center;
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.sheet {
+  position: relative; width: 100%; max-width: 460px; max-height: 100%; overflow-y: auto;
+  background: var(--card); color: var(--fg);
+  border: 2px solid var(--line); border-radius: 28px;
+  box-shadow: 8px 8px 0 var(--accent);
+  padding: 30px 26px 26px;
+  display: flex; flex-direction: column; gap: 16px; align-items: flex-start; text-align: left;
+  animation: pop .3s ease;
+}
+@keyframes pop { from { transform: translateY(14px) scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
+.close {
+  position: absolute; top: 12px; right: 12px; width: 38px; height: 38px; border-radius: 50%;
+  font: inherit; font-size: 1.1rem; font-weight: 800; line-height: 1; cursor: pointer;
+  background: transparent; color: var(--fg); border: 2px solid var(--line);
+}
+.tag {
+  background: var(--soft); color: var(--fg);
+  font-weight: 800; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase;
+  padding: 4px 12px; border-radius: 999px;
+}
+.msg { font-family: var(--font-display); font-size: clamp(1.4rem, 5vw, 1.8rem); line-height: 1.25; margin: 0; text-wrap: balance; }
+.ask { font-size: 1.15rem; font-weight: 600; margin: 0; }
+.btns { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; min-height: 68px; }
+.btn {
+  font-family: var(--font-display); font-size: 1.15rem; cursor: pointer;
+  border: 2px solid var(--line); border-radius: 16px; padding: 10px 28px;
+  transition: transform .2s ease;
+}
+.btn.yes { background: var(--accent); color: var(--accent-fg); box-shadow: 4px 4px 0 var(--line); }
+.btn.no { background: var(--card); color: var(--fg); }
+.btn.no { touch-action: none; }
+.btn.no.flee { position: fixed; z-index: 50; margin: 0; transition: left .25s cubic-bezier(.3,1.5,.5,1), top .25s cubic-bezier(.3,1.5,.5,1), transform .2s ease; }
+.confetti span.trail { position: fixed; font-size: 26px; color: inherit; animation: trail .8s ease-out forwards; }
+@keyframes trail { from { transform: translateY(0) scale(1); opacity: 1; } to { transform: translateY(-44px) scale(1.5); opacity: 0; } }
+.btn:focus-visible, .close:focus-visible, .again:focus-visible { outline: 3px solid var(--fg); outline-offset: 3px; }
+.reply { min-height: 2.6em; margin: 0; color: var(--muted); font-weight: 600; }
+.win { display: flex; flex-direction: column; gap: 12px; }
+.win h2 { font-family: var(--font-display); font-weight: 400; font-size: clamp(1.6rem, 6vw, 2.1rem); line-height: 1.1; margin: 0; text-wrap: balance; }
+.win p { margin: 0; font-size: 1.1rem; }
+.again { align-self: flex-start; font: inherit; font-weight: 800; cursor: pointer; background: var(--accent); color: var(--accent-fg); border: 2px solid var(--line); border-radius: 999px; padding: 8px 20px; margin-top: 4px; }
+.sheet.done .msg, .sheet.done .ask, .sheet.done .btns, .sheet.done .reply { display: none; }
+.north-land { fill: var(--north); stroke: var(--muted); stroke-width: 2; stroke-dasharray: 6 6; stroke-linejoin: round; }
+.nk { font-family: var(--font-body); font-weight: 800; font-size: 11px; letter-spacing: .28em; fill: var(--muted); pointer-events: none; }
+.pin.north .dot { fill: var(--fg); }
+.pin.north .ring { stroke: var(--fg); }
+.sheet.solo .ask, .sheet.solo .btns, .sheet.solo .reply { display: none; }
+.solo { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.solo .line { font-family: var(--font-display); font-size: clamp(1.3rem, 4.6vw, 1.6rem); line-height: 1.25; margin: 0; opacity: 0; transform: translateY(8px); transition: opacity .35s ease, transform .35s ease; }
+.solo .line.show, .solo .again.show { opacity: 1; transform: none; }
+.solo .again { opacity: 0; pointer-events: none; transition: opacity .35s ease; }
+.solo .again.show { pointer-events: auto; }
+.confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 40; }
+.confetti span { position: absolute; top: -30px; color: var(--accent); animation: fall linear forwards; }
+@keyframes fall { to { transform: translateY(110vh) rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .hint, .pin .ring, .floaty, .sheet, .wave, .cloud, .pin, .mini:hover, .glow.on { animation: none; }
+  .pin .ring { opacity: .5; r: 15; }
+  .btn, .btn.no.flee { transition: none; }
+  .confetti span.trail { animation: none; display: none; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Where do you wanna go? 🇰🇷</h1>
+    <p class="sub">Tap anywhere on the map to plan your next adventure… ♡</p>
+  </header>
+  <div class="hint" aria-hidden="true">👆 Tap the map!</div>
+
+  <div class="map-box">
+    <svg class="map" id="map" viewBox="0 -70 400 670" role="group" aria-label="Map of South Korea with eleven places to tap">
+      <defs>
+        <linearGradient id="gSea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--sea)"/><stop offset="1" style="stop-color:var(--sea2)"/></linearGradient>
+        <linearGradient id="gLand" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--land)"/><stop offset="1" style="stop-color:var(--land2)"/></linearGradient>
+        <radialGradient id="gSun" cx=".2" cy=".05" r=".95"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+        <radialGradient id="gGlow"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".5" stop-color="#ffd27a" stop-opacity=".55"/><stop offset="1" stop-color="#ffd27a" stop-opacity="0"/></radialGradient>
+        <g id="shape">
+          <path id="mainland" d=""></path>
+          <ellipse cx="85" cy="552" rx="46" ry="17"></ellipse>
+          <ellipse cx="150" cy="462" rx="6" ry="3"></ellipse>
+          <ellipse cx="235" cy="450" rx="7" ry="3"></ellipse>
+          <ellipse cx="264" cy="432" rx="5" ry="2.5"></ellipse>
+        </g>
+      </defs>
+      <rect class="sea" x="0" y="-70" width="400" height="670" rx="28"></rect>
+      <g id="waves"></g>
+      <use href="#shape" class="ripple r2"></use>
+      <use href="#shape" class="ripple r1"></use>
+      <g id="slab"></g>
+      <use href="#shape" class="top"></use>
+      <ellipse class="glow" id="glow" cx="0" cy="0" rx="38" ry="20"></ellipse>
+      <g id="rivers"></g>
+      <g id="scene"></g>
+      <rect class="sunlight" x="0" y="-70" width="400" height="670" rx="28"></rect>
+      <g id="clouds"></g>
+      <g id="pins"></g>
+      <g id="floaties"></g>
+    </svg>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="tag">
+    <button class="close" id="close" type="button" aria-label="Close">✕</button>
+    <span class="tag" id="tag">Seoul</span>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <p class="ask" id="ask">With me? 🥹❤️</p>
+    <div class="btns" id="btns">
+      <button class="btn yes" id="yes" type="button">YES</button>
+      <button class="btn no" id="no" type="button">NO</button>
+    </div>
+    <p class="reply" id="reply" aria-live="polite"></p>
+    <div class="solo" id="solo" hidden>
+      <p class="line" id="s2"></p>
+      <p class="line" id="s3"></p>
+      <button class="again" id="back2" type="button">Back to the map</button>
+    </div>
+    <div class="win" id="win" hidden>
+      <h2>CORRECT ANSWER!! 🎉❤️</h2>
+      <p>Your girlfriend has officially been added to all your future adventures.</p>
+      <p>Good choice. I knew you were smart. 😌</p>
+      <button class="again" id="again" type="button">Back to the map</button>
+    </div>
+  </div>
+</div>
+<div class="confetti" id="confetti" aria-hidden="true"></div>
+
+<script>
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Mainland outline (stylised), smoothed with a closed Catmull-Rom curve
+  var pts = [[40,115],[130,62],[210,60],[267,30],[290,70],[320,115],[340,170],[370,240],[375,290],[370,340],[350,380],[320,392],[270,405],[200,420],[160,440],[120,450],[60,430],[80,390],[70,340],[100,300],[80,260],[50,200],[100,190],[90,150],[70,120]];
+  function smooth(p) {
+    var n = p.length, d = "M" + p[0][0] + " " + p[0][1];
+    for (var i = 0; i < n; i++) {
+      var p0 = p[(i - 1 + n) % n], p1 = p[i], p2 = p[(i + 1) % n], p3 = p[(i + 2) % n];
+      var c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+      var c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+      d += " C" + c1x.toFixed(1) + " " + c1y.toFixed(1) + " " + c2x.toFixed(1) + " " + c2y.toFixed(1) + " " + p2[0] + " " + p2[1];
+    }
+    return d + " Z";
+  }
+  document.getElementById("mainland").setAttribute("d", smooth(pts));
+
+  // Island thickness: stacked copies of the land shape give the 3D slab (grass edge on top, soil below)
+  var slab = document.getElementById("slab");
+  (function () {
+    var sh = document.createElementNS(NS, "use");
+    sh.setAttribute("href", "#shape");
+    sh.setAttribute("transform", "translate(0 26)");
+    sh.setAttribute("style", "fill:#0b3b7a;stroke:#0b3b7a;stroke-width:12;opacity:.2");
+    slab.appendChild(sh);
+    for (var k = 18; k >= 1; k--) {
+      var c = k > 12 ? "var(--soil)" : "var(--landside)";
+      var u = document.createElementNS(NS, "use");
+      u.setAttribute("href", "#shape");
+      u.setAttribute("transform", "translate(0 " + k + ")");
+      u.setAttribute("style", "fill:" + c + ";stroke:" + c + ";stroke-width:5;stroke-linejoin:round");
+      slab.appendChild(u);
+    }
+  })();
+
+  // a = text-anchor, lx/ly = label offset from the pin
+  var places = [
+    { name: "Seoul",      x: 128, y: 133, lx: 0,   ly: -16, a: "middle", msg: "Seoul? With me. ♡" },
+    { name: "Incheon",    x: 98,  y: 150, lx: -14, ly: 5,   a: "end",    msg: "Incheon? The airport is right there, and so am I. ✈️" },
+    { name: "Gangneung",  x: 312, y: 118, lx: -14, ly: 5,   a: "end",    msg: "A seaside trip without your favorite person? Not happening." },
+    { name: "Daejeon",    x: 168, y: 255, lx: 14,  ly: 5,   a: "start",  msg: "Daejeon? Bakery stops, and I get the first bite. 🥐" },
+    { name: "Jeonju",     x: 145, y: 308, lx: 14,  ly: 5,   a: "start",  msg: "Jeonju bibimbap for one? Absolutely not. Two spoons. 🍚" },
+    { name: "Daegu",      x: 290, y: 303, lx: 0,   ly: -16, a: "middle", msg: "Daegu is hot, but I’m hotter. You’re not going without me. 🔥" },
+    { name: "Gyeongju",   x: 346, y: 306, lx: 0,   ly: 26,  a: "middle", msg: "Ancient temples, beautiful views, and me bothering you the entire time. ❤️" },
+    { name: "Busan",      x: 330, y: 372, lx: -14, ly: 5,   a: "end",    msg: "The ocean is pretty, but I’m prettier. Take me with you. 🤭" },
+    { name: "Yeosu",      x: 200, y: 408, lx: 0,   ly: 28,  a: "middle", msg: "Yeosu at night is romantic. Who’s holding your hand? Me. 🌃" },
+    { name: "Jeju Island",x: 85,  y: 550, lx: 0,   ly: 36,  a: "middle", msg: "You thought you could go to an island without me? Cute." },
+    { name: "Pyongyang",  x: 80,  y: -34, lx: 0,   ly: 26,  a: "middle", solo: true, msg: "Oh, you wanna go to NORTH KOREA? 🇰🇵", lines: ["Aww, that’s cute. 🥹", "You’re on your own for this one 💀"] }
+  ];
+
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  // ---------- Miniature toolkit: every piece is drawn with its base at (0,0), height going up ----------
+  function rnd(seed) { var s = seed; return function () { s = (s * 16807) % 2147483647; return s / 2147483647; }; }
+  function dk(h, f) {
+    var n = parseInt(h.slice(1), 16);
+    function c(v) { return Math.min(255, Math.round(v * f)); }
+    return "rgb(" + c((n >> 16) & 255) + "," + c((n >> 8) & 255) + "," + c(n & 255) + ")";
+  }
+  function pt(parent, pts, fill, op) {
+    var e = el("polygon", { points: pts.map(function (p) { return p[0] + "," + p[1]; }).join(" "), fill: fill }, parent);
+    if (op) e.setAttribute("opacity", op);
+    return e;
+  }
+  function boxIso(g, x, y, w, d, h, top, left, right) {
+    pt(g, [[x - w, y], [x, y + d], [x, y + d - h], [x - w, y - h]], left);
+    pt(g, [[x, y + d], [x + w, y], [x + w, y - h], [x, y + d - h]], right);
+    pt(g, [[x, y - d - h], [x + w, y - h], [x, y + d - h], [x - w, y - h]], top);
+  }
+  function windows(g, x, y, w, d, h, n) {
+    for (var i = 1; i <= n; i++) {
+      var o = h * i / (n + 1);
+      el("path", { d: "M" + (x - w + 1) + " " + (y - o + 0.5) + " L" + (x - 1) + " " + (y + d - o - 0.5), stroke: "#fff", "stroke-opacity": ".5", "stroke-width": ".8", fill: "none" }, g);
+      el("path", { d: "M" + (x + 1) + " " + (y + d - o - 0.5) + " L" + (x + w - 1) + " " + (y - o + 0.5), stroke: "#fff", "stroke-opacity": ".3", "stroke-width": ".8", fill: "none" }, g);
+    }
+  }
+  function roof(g, x, y, w, h, c) {
+    el("path", {
+      d: "M" + (x - w - 2) + " " + (y - 2) + " Q" + (x - w * 0.55) + " " + (y + h * 0.2) + " " + x + " " + (y + h * 0.75) +
+         " Q" + (x + w * 0.55) + " " + (y + h * 0.2) + " " + (x + w + 2) + " " + (y - 2) +
+         " Q" + (x + w * 0.5) + " " + (y - h * 0.5) + " " + x + " " + (y - h) +
+         " Q" + (x - w * 0.5) + " " + (y - h * 0.5) + " " + (x - w - 2) + " " + (y - 2) + "Z", fill: c
+    }, g);
+    el("path", { d: "M" + (x - w * 0.5) + " " + (y - h * 0.55) + " Q" + x + " " + (y - h * 0.1) + " " + (x + w * 0.5) + " " + (y - h * 0.55), stroke: "#fff", "stroke-opacity": ".35", "stroke-width": "1", fill: "none" }, g);
+  }
+  function round(g, c, fruit) {
+    el("rect", { x: -0.9, y: -4, width: 1.8, height: 4, fill: "#8a5a3a" }, g);
+    el("circle", { cx: 0, cy: -8, r: 4.6, fill: c || "#4fae5a" }, g);
+    el("circle", { cx: -1.6, cy: -9.6, r: 2.4, fill: "#8fe07c", opacity: ".75" }, g);
+    if (fruit) [[-2.4, -7], [2.2, -8.4], [0.4, -5.6], [2.6, -5.6]].forEach(function (f) { el("circle", { cx: f[0], cy: f[1], r: 1, fill: "#ff9a2e" }, g); });
+    return 4;
+  }
+  function pine(g, snow) {
+    el("rect", { x: -0.8, y: -3, width: 1.6, height: 3, fill: "#6b4a32" }, g);
+    pt(g, [[-5, -3], [5, -3], [0, -12]], "#2f7d4f");
+    pt(g, [[-4, -8], [4, -8], [0, -17]], "#3d9a62");
+    if (snow) pt(g, [[-2, -14], [2, -14], [0, -17]], "#fff");
+    return 4;
+  }
+  function hanok(g, door) {
+    boxIso(g, 0, 0, 7, 4, 4, "#fff5df", "#f3dfb8", "#dcc496");
+    pt(g, [[-5, 1.1], [-3, 2.3], [-3, -0.8], [-5, -1.9]], door || "#e0483f");
+    roof(g, 0, -4, 10, 6.5, "#56677c");
+    return 11;
+  }
+  function house(g, c) {
+    boxIso(g, 0, 0, 4, 2.4, 3.6, "#fff3dc", "#f6e5c2", "#e0cba2");
+    pt(g, [[-5, -3.6], [0, -7.4], [5, -3.6], [0, -1]], c || "#e0483f");
+    return 5;
+  }
+  function palace(g) {
+    boxIso(g, 0, 0, 13, 6, 3, "#d8d2c6", "#c7c0b2", "#aaa294");
+    boxIso(g, 0, -3, 9, 4.2, 6, "#f4b8a8", "#e0604f", "#b84a3c");
+    roof(g, 0, -9, 13, 8, "#3f5f7a");
+    boxIso(g, 0, -11, 4.5, 2, 3.5, "#f4b8a8", "#e0604f", "#b84a3c");
+    roof(g, 0, -14.5, 8, 5.5, "#34526b");
+    return 15;
+  }
+  function seoulTower(g) {
+    el("ellipse", { cx: 0, cy: 0, rx: 15, ry: 7, fill: "#5fb85f" }, g);
+    el("ellipse", { cx: -3, cy: -1.5, rx: 9, ry: 3.5, fill: "#82d27a" }, g);
+    pt(g, [[-3.6, -3], [3.6, -3], [1, -19], [-1, -19]], "#e6dfd2");
+    pt(g, [[0, -3], [3.6, -3], [1, -19], [0, -19]], "#cbc3b3");
+    el("ellipse", { cx: 0, cy: -19, rx: 5.5, ry: 2.4, fill: "#e0483f" }, g);
+    el("rect", { x: -5.5, y: -21.3, width: 11, height: 2.3, fill: "#fff7e8" }, g);
+    el("ellipse", { cx: 0, cy: -21.3, rx: 5.5, ry: 2.4, fill: "#fffdf4" }, g);
+    el("line", { x1: 0, y1: -23.7, x2: 0, y2: -34, stroke: "#cfd6e0", "stroke-width": "1.2" }, g);
+    el("circle", { cx: 0, cy: -34, r: 1, fill: "#e0483f" }, g);
+    return 16;
+  }
+  function skyline(g, n, seed) {
+    var r = rnd(seed), items = [];
+    var cols = [["#cfe3f6", "#9fc4e6", "#7fa9d1"], ["#f3ece0", "#d9cdb8", "#bfb199"], ["#d8dff0", "#aab6d6", "#8a98bf"], ["#ffd9cf", "#f0a899", "#d58878"]];
+    for (var i = 0; i < n; i++) items.push({ x: (i - (n - 1) / 2) * 7 + (r() - 0.5) * 2, y: ((i % 2) ? 3 : -2) + r() * 2, h: 10 + r() * 20, c: cols[Math.floor(r() * cols.length)] });
+    items.sort(function (a, b) { return a.y - b.y; });
+    items.forEach(function (b) {
+      boxIso(g, b.x, b.y, 3.4, 2.2, b.h, b.c[0], b.c[1], b.c[2]);
+      windows(g, b.x, b.y, 3.4, 2.2, b.h, Math.floor(b.h / 5));
+    });
+    return n * 4;
+  }
+  function mountain(g, snow, tones) {
+    var t = tones || ["#9db8c9", "#7893a8"];
+    pt(g, [[-14, 0], [0, -22], [2, 0]], t[0]);
+    pt(g, [[2, 0], [0, -22], [15, 0]], t[1]);
+    if (snow) pt(g, [[-5.4, -14], [-2.4, -15.4], [0, -12.6], [2.6, -15.2], [5.4, -13.6], [0, -22]], "#fff");
+    return 15;
+  }
+  function lake(g, rx, ry) {
+    el("ellipse", { cx: 0, cy: 0, rx: rx + 1.6, ry: ry + 0.9, fill: "#ffe9b8" }, g);
+    el("ellipse", { cx: 0, cy: 0, rx: rx, ry: ry, fill: "#5cc2ee" }, g);
+    el("ellipse", { cx: -rx * 0.25, cy: -ry * 0.25, rx: rx * 0.5, ry: ry * 0.4, fill: "#fff", opacity: ".35" }, g);
+    return 0;
+  }
+  function fields(g, seed) {
+    var r = rnd(seed), gr = ["#b7e07a", "#8fcf6c", "#d9e585", "#6fbf62"];
+    for (var i = 0; i < 6; i++) {
+      var x = (i % 3) * 11 - 11, y = Math.floor(i / 3) * 6 - 3;
+      pt(g, [[x - 5, y], [x, y + 2.8], [x + 5, y], [x, y - 2.8]], gr[Math.floor(r() * 4)]);
+    }
+    return 0;
+  }
+  function park(g) {
+    el("ellipse", { cx: 0, cy: 0, rx: 10, ry: 4.2, fill: "#c6f0a4" }, g);
+    var t = el("g", { transform: "translate(-3 0)" }, g); round(t);
+    var u = el("g", { transform: "translate(4 1) scale(.8)" }, g); round(u, "#5cbf6a");
+    return 0;
+  }
+  function boat(g) {
+    el("ellipse", { cx: 0, cy: 3, rx: 7, ry: 1.5, fill: "none", stroke: "#fff", "stroke-opacity": ".6", "stroke-width": ".8" }, g);
+    el("path", { d: "M-5 0 L5 0 L3.4 2.6 L-3.4 2.6Z", fill: "#e0483f" }, g);
+    el("line", { x1: 0, y1: 0, x2: 0, y2: -9, stroke: "#8a5a3a", "stroke-width": ".8" }, g);
+    pt(g, [[0.8, -8.5], [0.8, -1], [6, -1]], "#fff");
+    pt(g, [[-0.8, -7], [-0.8, -1], [-4.5, -1]], "#ffe9b8");
+    return 0;
+  }
+  function bridge(g, len, towers) {
+    el("path", { d: "M" + (-len) + " 0 Q0 -3 " + len + " 0", stroke: "#fff5df", "stroke-width": "3.2", fill: "none", "stroke-linecap": "round" }, g);
+    el("path", { d: "M" + (-len) + " 1.8 Q0 -1.2 " + len + " 1.8", stroke: "#c9b78f", "stroke-width": "1.2", fill: "none" }, g);
+    towers.forEach(function (tx) {
+      var x = tx * len;
+      for (var j = 1; j <= 4; j++) {
+        el("line", { x1: x, y1: -14, x2: x + j * 4.5, y2: -1.2, stroke: "#ff8a7a", "stroke-width": ".6" }, g);
+        el("line", { x1: x, y1: -14, x2: x - j * 4.5, y2: -1.2, stroke: "#ff8a7a", "stroke-width": ".6" }, g);
+      }
+      pt(g, [[x - 1.6, 0], [x, -16], [x + 1.6, 0]], "#fff");
+    });
+    return 0;
+  }
+  function harbor(g) {
+    boxIso(g, -6, 2, 3.4, 1.8, 3, "#ffd36b", "#e0a93a", "#c2902c");
+    boxIso(g, 0, 3, 3.4, 1.8, 3, "#ff8a78", "#e0483f", "#b9362f");
+    boxIso(g, 6, 2, 3.4, 1.8, 3, "#7fd1c7", "#4db1a6", "#3a8f86");
+    el("path", { d: "M10 3 L10 -12 L-3 -12 M10 -12 L16 -9", stroke: "#e0483f", "stroke-width": "1.4", fill: "none" }, g);
+    return 0;
+  }
+  function gamcheon(g) {
+    var cols = ["#ff8a78", "#ffd36b", "#7fd1c7", "#f6a1c2", "#8ab6f0", "#ffb36b"];
+    var spots = [[0, -10], [-7, -6], [7, -6], [-14, -2], [0, -4], [14, -2], [-7, 2], [7, 2], [0, 5]];
+    spots.sort(function (a, b) { return a[1] - b[1]; });
+    spots.forEach(function (s, i) { var c = cols[i % cols.length]; boxIso(g, s[0], s[1], 3.6, 2.2, 5, dk(c, 1.12), c, dk(c, 0.8)); });
+    return 16;
+  }
+  function beach(g) {
+    el("path", { d: "M-14 0 Q0 -9 14 0 Q0 5 -14 0Z", fill: "#ffe9b8" }, g);
+    [-7, -1, 5].forEach(function (x, i) {
+      el("line", { x1: x, y1: -1, x2: x, y2: -6, stroke: "#fff", "stroke-width": ".8" }, g);
+      el("path", { d: "M" + (x - 3.2) + " -6 Q" + x + " -10 " + (x + 3.2) + " -6Z", fill: i % 2 ? "#46a8e8" : "#e0483f" }, g);
+    });
+    return 0;
+  }
+  function cheomseongdae(g) {
+    el("path", { d: "M-6 0 Q-7.5 -6 -3.6 -12 L-4.6 -15 L4.6 -15 L3.6 -12 Q7.5 -6 6 0Z", fill: "#efe2c8" }, g);
+    el("path", { d: "M0 0 L6 0 Q7.5 -6 3.6 -12 L4.6 -15 L0 -15Z", fill: "#d8c7a3" }, g);
+    el("rect", { x: -1.6, y: -8, width: 3.2, height: 3.6, rx: 0.8, fill: "#5a4a3c" }, g);
+    el("ellipse", { cx: 0, cy: -15, rx: 4.6, ry: 1.4, fill: "#c9b78f" }, g);
+    return 7;
+  }
+  function pagoda(g) {
+    for (var i = 0; i < 3; i++) {
+      var by = -i * 6.5, w = 5 - i * 0.8;
+      boxIso(g, 0, by, w, w / 2, 3, "#e8dcc4", "#d9c9a8", "#c2ae88");
+      roof(g, 0, by - 3, w + 3, 3.8, "#7b6a5a");
+    }
+    el("line", { x1: 0, y1: -22, x2: 0, y2: -27, stroke: "#c9b78f", "stroke-width": "1" }, g);
+    return 8;
+  }
+  function mound(g) {
+    el("ellipse", { cx: 0, cy: 0, rx: 7, ry: 2.6, fill: "#e9dcb9" }, g);
+    el("path", { d: "M-6.5 0 Q0 -11 6.5 0Z", fill: "#7ccf70" }, g);
+    el("path", { d: "M0 -5.4 Q4 -4 6.5 0 L0 0Z", fill: "#5fb35a", opacity: ".6" }, g);
+    return 7;
+  }
+  function lodge(g) {
+    boxIso(g, 0, 0, 6, 3.4, 4.5, "#fff", "#f3e3c6", "#d9c49a");
+    pt(g, [[-7.5, -4.2], [0, -10], [7.5, -4.2], [0, -0.4]], "#e0483f");
+    pt(g, [[-5, -5.4], [0, -9], [5, -5.4], [0, -2.6]], "#fff", ".9");
+    return 8;
+  }
+  function hallasan(g) {
+    el("path", { d: "M-32 0 Q-20 -4 -10 -15 Q-6 -19 -4.5 -20.5 Q0 -19 4.5 -20.5 Q6 -19 10 -15 Q20 -4 32 0Z", fill: "#6fb56a" }, g);
+    el("path", { d: "M0 -19.5 L4.5 -20.5 Q6 -19 10 -15 Q20 -4 32 0 L8 0Z", fill: "#549c58", opacity: ".7" }, g);
+    el("path", { d: "M-32 0 Q-20 -4 -10 -15 L-7 -11 Q-18 -2 -26 1Z", fill: "#8bcb7c", opacity: ".6" }, g);
+    el("ellipse", { cx: 0, cy: -20, rx: 4.6, ry: 1.5, fill: "#5cc2ee" }, g);
+    return 30;
+  }
+  function rock(g) {
+    el("ellipse", { cx: 0, cy: -1.4, rx: 3.2, ry: 2.2, fill: "#4b4a55" }, g);
+    el("ellipse", { cx: -0.8, cy: -2.2, rx: 1.6, ry: 1, fill: "#6d6c79" }, g);
+    return 3;
+  }
+  function windmill(g) {
+    pt(g, [[-1.4, 0], [1.4, 0], [0.6, -14], [-0.6, -14]], "#fff");
+    var b = el("g", { transform: "translate(0 -14)" }, g);
+    var spin = el("g", {}, b);
+    [0, 120, 240].forEach(function (a) { el("path", { d: "M0 0 L-1 -8 L1 -8Z", fill: "#f3ece0", transform: "rotate(" + a + ")" }, spin); });
+    el("circle", { cx: 0, cy: 0, r: 1.3, fill: "#e0483f" }, b);
+    if (!reduce) {
+      var an = document.createElementNS(NS, "animateTransform");
+      an.setAttribute("attributeName", "transform"); an.setAttribute("type", "rotate");
+      an.setAttribute("from", "0 0 0"); an.setAttribute("to", "360 0 0");
+      an.setAttribute("dur", "7s"); an.setAttribute("repeatCount", "indefinite");
+      spin.appendChild(an);
+    }
+    return 3;
+  }
+  function cloud(g, s) {
+    el("circle", { cx: 0, cy: 0, r: 7 * s }, g);
+    el("circle", { cx: 8 * s, cy: 1 * s, r: 9 * s }, g);
+    el("circle", { cx: 17 * s, cy: 2 * s, r: 6 * s }, g);
+    el("rect", { x: -6 * s, y: 2 * s, width: 28 * s, height: 6 * s, rx: 3 * s }, g);
+  }
+  // ---------- Build the world: scenery per region, depth-sorted back to front ----------
+  (function buildWorld() {
+    var sceneG = document.getElementById("scene");
+    var land = document.getElementById("mainland");
+    var queue = [];
+    function put(x, y, fn, sc) { queue.push({ x: x, y: y, fn: fn, sc: sc || 1 }); }
+    function inLand(x, y) {
+      if (!land.isPointInFill) return true;
+      var ok = true;
+      [[0, 0], [-6, 0], [6, 0], [0, 5]].forEach(function (o) {
+        var p = svg0.createSVGPoint(); p.x = x + o[0]; p.y = y + o[1];
+        if (!land.isPointInFill(p)) ok = false;
+      });
+      return ok;
+    }
+    var svg0 = document.getElementById("map");
+    function free(x, y) {
+      for (var i = 0; i < queue.length; i++) if (Math.hypot(queue[i].x - x, queue[i].y - y) < 11) return false;
+      for (var j = 0; j < places.length; j++) if (Math.hypot(places[j].x - x, places[j].y - y) < 15) return false;
+      return true;
+    }
+    function forest(cx, cy, n, rx, ry, kind, seed) {
+      var r = rnd(seed), made = 0, tries = 0;
+      while (made < n && tries < n * 10) {
+        tries++;
+        var a = r() * 6.283, d = Math.sqrt(r());
+        var x = cx + Math.cos(a) * rx * d, y = cy + Math.sin(a) * ry * d;
+        if (!inLand(x, y) || !free(x, y)) continue;
+        made++;
+        var s = 0.85 + r() * 0.5;
+        if (kind === "pine") put(x, y, function (g) { return pine(g, true); }, s);
+        else put(x, y, function (g) { return round(g, r() > 0.5 ? "#4fae5a" : "#5cbf6a"); }, s);
+      }
+    }
+    var ns = "#6ec6f0";
+
+    // Rivers (under the buildings)
+    var rv = document.getElementById("rivers");
+    [["M205 152 Q170 162 140 148 T92 143", 4], ["M300 238 Q296 300 314 346 Q320 372 322 390", 3.2]].forEach(function (r) {
+      el("path", { d: r[0], stroke: "#fff2d6", "stroke-width": r[1] + 2, fill: "none", "stroke-linecap": "round", opacity: ".8" }, rv);
+      el("path", { d: r[0], stroke: ns, "stroke-width": r[1], fill: "none", "stroke-linecap": "round" }, rv);
+    });
+
+    // Seoul
+    put(158, 126, seoulTower);
+    put(148, 143, palace, 0.9);
+    put(178, 150, function (g) { return skyline(g, 5, 7); });
+    // Incheon
+    put(60, 172, function (g) { var b = el("g", { transform: "rotate(-12)" }, g); return bridge(b, 26, [0]); });
+    put(84, 184, harbor);
+    put(38, 138, boat); put(30, 160, boat, 0.8);
+    // Gyeonggi
+    [[200, 142, "#e0483f"], [212, 150, "#4aa3e0"], [192, 158, "#ffb347"], [168, 172, "#e0483f"], [182, 182, "#4aa3e0"]].forEach(function (h) {
+      put(h[0], h[1], function (g) { return house(g, h[2]); });
+    });
+    put(206, 172, park);
+    put(232, 152, function (g) { return skyline(g, 3, 21); });
+    // Gangwon
+    put(222, 92, function (g) { return mountain(g, true); });
+    put(246, 100, function (g) { return mountain(g, true); }, 1.25);
+    put(270, 96, function (g) { return mountain(g, true); });
+    put(288, 112, function (g) { return mountain(g, false); }, 0.8);
+    put(258, 124, lodge);
+    put(318, 182, function (g) { return mountain(g, true); }, 1.1);
+    put(334, 218, function (g) { return mountain(g, false); });
+    forest(238, 120, 9, 24, 10, "pine", 10);
+    forest(300, 150, 7, 14, 16, "pine", 14);
+    forest(300, 200, 12, 18, 26, "pine", 9);
+    // Chungcheong
+    put(228, 215, function (g) { return lake(g, 16, 6); });
+    put(130, 240, function (g) { return lake(g, 9, 3.5); });
+    [[200, 276], [212, 282], [190, 286], [204, 292]].forEach(function (h) { put(h[0], h[1], function (g) { return hanok(g, "#e0483f"); }, 0.8); });
+    put(172, 272, function (g) { return skyline(g, 3, 5); });
+    put(118, 264, function (g) { return fields(g, 4); });
+    // Jeolla
+    [[126, 324], [138, 332], [116, 334], [128, 340], [112, 322]].forEach(function (h, i) { put(h[0], h[1], function (g) { return hanok(g, i % 2 ? "#4aa3e0" : "#e0483f"); }, 0.8); });
+    put(102, 358, function (g) { return fields(g, 8); });
+    put(136, 368, function (g) { return fields(g, 3); });
+    put(206, 338, function (g) { return mountain(g, false, ["#7fbf74", "#5da45f"]); }, 1.1);
+    put(236, 432, function (g) { return bridge(g, 18, [-0.4, 0.4]); });
+    put(46, 388, boat); put(100, 470, boat, 0.9); put(196, 462, boat, 0.8);
+    // Gyeongsang
+    put(272, 322, function (g) { return skyline(g, 4, 31); });
+    put(330, 292, cheomseongdae);
+    put(354, 284, pagoda, 0.8);
+    put(306, 312, mound); put(298, 322, mound, 0.9);
+    [[300, 252], [312, 258], [292, 260]].forEach(function (h) { put(h[0], h[1], function (g) { return hanok(g, "#e0483f"); }, 0.8); });
+    put(322, 350, gamcheon);
+    put(352, 362, function (g) { return skyline(g, 3, 11); });
+    put(346, 384, beach);
+    // Jeju
+    put(82, 548, hallasan, 0.95);
+    [[108, 555], [114, 550], [104, 560], [120, 557]].forEach(function (t) { put(t[0], t[1], function (g) { return round(g, "#3f9a4f", true); }, 0.9); });
+    [[58, 556], [64, 562], [122, 564], [48, 552]].forEach(function (t) { put(t[0], t[1], rock); });
+    put(96, 563, function (g) { return house(g, "#ffb347"); }, 0.8);
+    put(104, 566, function (g) { return house(g, "#4aa3e0"); }, 0.8);
+    put(120, 546, windmill);
+
+    // Greenery fill (only on real land, away from landmarks)
+    forest(150, 200, 10, 30, 14, "round", 11);
+    forest(238, 195, 8, 26, 12, "round", 3);
+    forest(120, 250, 6, 22, 10, "round", 5);
+    forest(240, 300, 10, 28, 18, "round", 6);
+    forest(210, 350, 12, 30, 16, "round", 7);
+    forest(250, 360, 8, 24, 14, "round", 8);
+    forest(95, 320, 6, 14, 18, "round", 12);
+    forest(170, 395, 8, 26, 10, "round", 13);
+
+    queue.sort(function (a, b) { return a.y - b.y; });
+    queue.forEach(function (q) {
+      var o = el("g", { transform: "translate(" + q.x + " " + q.y + ") scale(" + q.sc + ")" }, sceneG);
+      var inner = el("g", { "class": "mini" }, o);
+      var rx = q.fn(inner);
+      if (rx) o.insertBefore(el("ellipse", { cx: 0, cy: 1, rx: rx, ry: rx * 0.38, fill: "#0b3b2a", opacity: ".2" }), inner);
+    });
+
+    // Waves and clouds
+    var wg = document.getElementById("waves");
+    [[30, -30], [330, -45], [180, -55], [360, 60], [20, 90], [375, 200], [20, 300], [385, 330], [30, 470], [360, 520], [150, 520], [250, 500], [30, 560], [330, 440]].forEach(function (p, i) {
+      var o = el("g", { transform: "translate(" + p[0] + " " + p[1] + ")" }, wg);
+      var w = el("path", { d: "M0 0 q3 -3 6 0 t6 0", "class": "wave" }, o);
+      w.style.animationDelay = (i * 0.4) + "s";
+    });
+    var cg = document.getElementById("clouds");
+    [[40, -52, 1], [300, -34, 0.8], [290, 505, 1.1], [210, 20, 0.7]].forEach(function (c, i) {
+      var o = el("g", { transform: "translate(" + c[0] + " " + c[1] + ")" }, cg);
+      var inner = el("g", { "class": "cloud" }, o);
+      inner.style.animationDelay = (-i * 3) + "s";
+      cloud(inner, c[2]);
+    });
+  })();
+
+  var glow = document.getElementById("glow");
+  function showGlow(p) {
+    if (p.solo) { glow.classList.remove("on"); return; }
+    glow.setAttribute("cx", p.x); glow.setAttribute("cy", p.y + 4);
+    glow.classList.add("on");
+  }
+  var pinsG = document.getElementById("pins");
+  places.forEach(function (p, i) {
+    if (!p.solo) el("ellipse", { cx: p.x, cy: p.y + 11, rx: 6, ry: 2, fill: "#0b2a4a", opacity: ".25" }, pinsG);
+    var g = el("g", { "class": p.solo ? "pin north" : "pin", tabindex: "0", role: "button", "aria-label": p.name }, pinsG);
+    var ring = el("circle", { "class": "ring", cx: p.x, cy: p.y, r: 9 }, g);
+    ring.style.animationDelay = (i * 0.2) + "s";
+    el("circle", { "class": "dot", cx: p.x, cy: p.y, r: 8 }, g);
+    var t = el("text", { x: p.x + p.lx, y: p.y + p.ly, "text-anchor": p.a }, g);
+    t.textContent = p.name;
+    g.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCity(p); }
+    });
+    g.addEventListener("click", function (e) { e.stopPropagation(); spawnHeart(p.x, p.y); openCity(p); });
+  });
+
+  var svg = document.getElementById("map");
+  var floaties = document.getElementById("floaties");
+
+  function spawnHeart(x, y) {
+    var h = el("text", { "class": "floaty", x: x - 10, y: y + 6 }, floaties);
+    h.textContent = "♡";
+    h.setAttribute("fill", getComputedStyle(document.documentElement).getPropertyValue("--accent"));
+    setTimeout(function () { if (h.parentNode) h.parentNode.removeChild(h); }, 950);
+  }
+
+  // Tap anywhere on the map: snap to the nearest city and open its screen
+  svg.addEventListener("click", function (e) {
+    var r = svg.getBoundingClientRect();
+    var x = (e.clientX - r.left) * (400 / r.width);
+    var y = (e.clientY - r.top) * (670 / r.height) - 70;
+    var best = places[0], bd = Infinity;
+    places.forEach(function (p) {
+      var d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
+      if (d < bd) { bd = d; best = p; }
+    });
+    spawnHeart(x, y);
+    openCity(best);
+  });
+
+  // Popup screen
+  var overlay = document.getElementById("overlay");
+  var sheet = document.getElementById("sheet");
+  var tag = document.getElementById("tag");
+  var msg = document.getElementById("msg");
+  var yes = document.getElementById("yes");
+  var no = document.getElementById("no");
+  var reply = document.getElementById("reply");
+  var win = document.getElementById("win");
+  var confetti = document.getElementById("confetti");
+  var tries = 0;
+  var lastFocus = null;
+  var solo = document.getElementById("solo");
+  var soloTimers = [];
+
+  function clearSolo() {
+    soloTimers.forEach(clearTimeout);
+    soloTimers = [];
+    var items = solo.querySelectorAll(".line, .again");
+    for (var i = 0; i < items.length; i++) items[i].classList.remove("show");
+  }
+
+  // Pyongyang: no question, three lines appear one by one, then a skull rain
+  function playSolo(p) {
+    var l2 = document.getElementById("s2"), l3 = document.getElementById("s3"), b = document.getElementById("back2");
+    l2.textContent = p.lines[0];
+    l3.textContent = p.lines[1];
+    [[l2, 1000], [l3, 2200], [b, 3200]].forEach(function (s, i) {
+      soloTimers.push(setTimeout(function () {
+        s[0].classList.add("show");
+        if (i === 1) burst(["💀"]);
+        if (i === 2) b.focus({ preventScroll: true });
+      }, reduce ? 0 : s[1]));
+    });
+  }
+
+  var noMsgs = [
+    "Nice try 😂",
+    "You really thought that would work?",
+    "Error 404: Permission to leave your girlfriend behind not found.",
+    "Wrong answer. Try again. 🤭",
+    "Are you sure? 🥺"
+  ];
+
+  function applySize() {
+    var grow = Math.min(1 + tries * 0.08, 1.35);
+    var shrink = Math.max(1 - tries * 0.08, 0.6);
+    yes.style.transform = "scale(" + grow + ")";
+    yes.style.marginInline = (grow - 1) * 30 + "px";
+    no.style.transform = "scale(" + shrink + ")";
+  }
+
+  function openCity(p) {
+    tries = 0;
+    resetNo();
+    applySize();
+    reply.textContent = "";
+    win.hidden = true;
+    sheet.classList.remove("done");
+    clearSolo();
+    showGlow(p);
+    tag.textContent = p.name;
+    msg.textContent = p.msg;
+    sheet.classList.toggle("solo", !!p.solo);
+    solo.hidden = !p.solo;
+    lastFocus = document.activeElement;
+    overlay.hidden = false;
+    if (p.solo) playSolo(p); else yes.focus({ preventScroll: true });
+  }
+
+  function closeSheet() {
+    overlay.hidden = true;
+    glow.classList.remove("on");
+    clearSolo();
+    resetNo();
+    confetti.innerHTML = "";
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus({ preventScroll: true }); } catch (e) {} }
+  }
+
+  // The NO button runs away around the whole screen, leaving a silly face behind
+  var spacer = null;
+  var faces = ["😝", "😜"];
+  var faceI = 0;
+
+  function resetNo() {
+    no.classList.remove("flee");
+    no.style.left = "";
+    no.style.top = "";
+    no.textContent = "NO";
+    if (spacer && spacer.parentNode) spacer.parentNode.removeChild(spacer);
+    spacer = null;
+  }
+
+  function dodge() {
+    var w = no.offsetWidth, h = no.offsetHeight;
+    var r = no.getBoundingClientRect();
+    var ox = r.left + r.width / 2, oy = r.top + r.height / 2;
+    if (!spacer) {
+      spacer = document.createElement("span");
+      spacer.style.display = "inline-block";
+      spacer.style.width = w + "px";
+      spacer.style.height = h + "px";
+      no.parentNode.insertBefore(spacer, no);
+      no.classList.add("flee");
+      no.style.left = (ox - w / 2) + "px";
+      no.style.top = (oy - h / 2) + "px";
+      void no.offsetWidth;
+    }
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var yr = yes.getBoundingClientRect();
+    var nx = 14, ny = 48;
+    for (var i = 0; i < 40; i++) {
+      var tx = 14 + Math.random() * Math.max(1, vw - w - 28);
+      var ty = 48 + Math.random() * Math.max(1, vh - h - 72);
+      var far = Math.hypot(tx + w / 2 - ox, ty + h / 2 - oy) > Math.min(vw, vh) * 0.3;
+      var hitYes = tx < yr.right + 24 && tx + w > yr.left - 24 && ty < yr.bottom + 24 && ty + h > yr.top - 24;
+      nx = tx; ny = ty;
+      if (far && !hitYes) break;
+    }
+    var face = faces[faceI++ % faces.length];
+    if (!reduce) {
+      var t = document.createElement("span");
+      t.className = "trail";
+      t.textContent = face;
+      t.style.left = (ox - 14) + "px";
+      t.style.top = (oy - 16) + "px";
+      confetti.appendChild(t);
+      setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 900);
+    }
+    no.textContent = "NO " + face;
+    no.style.left = nx + "px";
+    no.style.top = ny + "px";
+    reply.textContent = noMsgs[tries % noMsgs.length];
+    tries++;
+    applySize();
+  }
+
+  no.addEventListener("pointerenter", function (e) { if (e.pointerType === "mouse") dodge(); });
+  no.addEventListener("pointerdown", function (e) { e.preventDefault(); dodge(); });
+  no.addEventListener("click", dodge);
+
+  function burst(custom) {
+    if (reduce) return;
+    var bits = custom || ["❤", "♡", "💖", "✨"];
+    for (var i = 0; i < (custom ? 18 : 36); i++) {
+      var s = document.createElement("span");
+      s.textContent = bits[i % bits.length];
+      s.style.left = Math.random() * 100 + "%";
+      s.style.fontSize = 16 + Math.random() * 22 + "px";
+      s.style.animationDuration = 2.2 + Math.random() * 2 + "s";
+      s.style.animationDelay = Math.random() * 0.6 + "s";
+      confetti.appendChild(s);
+    }
+    setTimeout(function () { confetti.innerHTML = ""; }, 5200);
+  }
+
+  yes.addEventListener("click", function () {
+    sheet.classList.add("done");
+    win.hidden = false;
+    burst();
+    document.getElementById("again").focus({ preventScroll: true });
+  });
+
+  document.getElementById("again").addEventListener("click", closeSheet);
+  document.getElementById("back2").addEventListener("click", closeSheet);
+  document.getElementById("close").addEventListener("click", closeSheet);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !overlay.hidden) closeSheet(); });
+})();
+</script>
+
+</body></html>
